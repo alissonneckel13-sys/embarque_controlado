@@ -55,22 +55,34 @@ Monitoramento de Qualidade • Retrabalho • Rastreabilidade
 """, unsafe_allow_html=True)
 
 # =========================
-# DADOS (FAKE PARA FUNCIONAR)
+# GOOGLE SHEETS (CSV + REFRESH)
 # =========================
-df = pd.DataFrame({
-    "HORAS RETRABALHO": [1, 2, 3, 1, 4, 2],
-    "NÚMERO DE SÉRIE": ["A1", "A2", "A3", "A4", "A5", "A6"],
-    "MOTIVO DO ERRO": ["Falha", "Ajuste", "Erro", "Falha", "Erro", "Ajuste"],
-    "SETOR CAUSADOR": ["Corte", "Montagem", "Pintura", "Montagem", "Corte", "Pintura"]
-})
+URL = "https://docs.google.com/spreadsheets/d/1YfWO4Oa9fXF_bS7PS2NgRPUs1mrH8FIU8_kY4ANtkyI/export?format=csv&gid=0"
+
+@st.cache_data(ttl=10)
+def load_data():
+    df = pd.read_csv(URL)
+    return df
+
+df = load_data()
+
+# =========================
+# LIMPEZA
+# =========================
+df.columns = df.columns.str.strip().str.upper()
+
+if "HORAS RETRABALHO" not in df.columns:
+    df["HORAS RETRABALHO"] = 0
+
+df["HORAS RETRABALHO"] = pd.to_numeric(df["HORAS RETRABALHO"], errors="coerce").fillna(0)
 
 # =========================
 # KPIs
 # =========================
 total_horas = df["HORAS RETRABALHO"].sum()
 total_registros = len(df)
-total_maquinas = df["NÚMERO DE SÉRIE"].nunique()
-total_erros = df["MOTIVO DO ERRO"].count()
+total_maquinas = df["NÚMERO DE SÉRIE"].nunique() if "NÚMERO DE SÉRIE" in df.columns else 0
+total_erros = df["MOTIVO DO ERRO"].count() if "MOTIVO DO ERRO" in df.columns else 0
 
 c1, c2, c3, c4 = st.columns(4)
 
@@ -82,7 +94,7 @@ c4.metric("❌ Erros", total_erros)
 # =========================
 # QUALIDADE
 # =========================
-qualidade = max(0, 100 - ((total_erros / total_registros) * 100))
+qualidade = max(0, 100 - ((total_erros / max(total_registros, 1)) * 100))
 
 fig_gauge = go.Figure(go.Indicator(
     mode="gauge+number",
@@ -131,7 +143,7 @@ with colA:
     st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# IA SCORE
+# SCORE IA
 # =========================
 with colB:
     st.subheader("🧠 Ranking Inteligente")
@@ -169,4 +181,8 @@ with colB:
 # TABELA FINAL
 # =========================
 st.subheader("📋 Dados MES")
+
 st.dataframe(df, use_container_width=True)
+
+# DEBUG (opcional)
+st.caption("Última atualização automática a cada 10 segundos")
